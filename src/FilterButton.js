@@ -12,8 +12,8 @@ class FilterButton extends React.Component {
   }
 
   render() {
-    let disabled = "bg-transparent text-blue-700 border-blue-500";
-    let enabled = "bg-blue-500 text-white border-transparent";
+    let disabled = "text-sm font-medium transition-colors hover:text-primary";
+    let enabled = "text-sm font-medium transition-colors hover:text-primary bg-gray-300";
 
     if (!this.state.active) {
       [disabled, enabled] = [enabled, disabled];
@@ -23,7 +23,7 @@ class FilterButton extends React.Component {
         className={`${enabled} ${disabled
           .split(" ")
           .map((h) => `hover:${h}`)
-          .join(" ")} font-semibold py-2 px-4 border rounded mr-2`}
+          .join(" ")} font-semibold py-2 px-2 border rounded`}
         onClick={this.handleClick.bind(this)}
       >
         {this.props.children}

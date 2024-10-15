@@ -2,6 +2,7 @@
 
 # dependencies
 /node_modules
+/.yarn
 /.pnp
 .pnp.js
 
@@ -12,6 +13,7 @@
 /build
 
 # misc
+src/config.json
 .DS_Store
 .env.local
 .env.development.local

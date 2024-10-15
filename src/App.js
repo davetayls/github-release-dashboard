@@ -3,14 +3,15 @@ import { Octokit } from "@octokit/rest";
 
 import Repo from "./Repo";
 import FilterButton from "./FilterButton";
+import { getConfig } from "./config";
 
 class App extends React.Component {
   constructor() {
     super();
     this.state = {
-      unreleased: false,
+      unreleased: true,
       dependabot_only: false,
-      zero_ahead: false,
+      zero_ahead: true,
       repos: [],
       authToken: null,
       targetUser: null,
@@ -18,14 +19,17 @@ class App extends React.Component {
       loading_progress: "- Fetching repos",
     };
 
-    this.octokit = undefined;
+      this.octokit = undefined;
   }
 
   async loadRepos() {
+    const config = getConfig();
+    const repoNames = config.repos.map((repo) => repo.name);
     let repos = await this.octokit.paginate(
-      this.octokit.repos.listForUser,
+      this.octokit.repos.listForOrg,
       {
-        username: this.state.targetUser,
+        org: config.org,
+        type: 'all',
         per_page: 100,
         //per_page: 1,
       },
@@ -33,20 +37,20 @@ class App extends React.Component {
     );
 
     // Remove archived repos
-    repos = repos.filter((r) => !r.archived);
+    repos = repos.filter((r) => !r.archived && repoNames.some((name) => r.full_name.includes(name)));
 
     this.setState({ repos, loading_progress: "- Fetching releases" });
 
     // Get the latest release
     repos = await Promise.all(
       repos.map(async (repo) => {
-        const { data: release } = await this.octokit.repos.listReleases({
+        const { data: releases } = await this.octokit.repos.listReleases({
           owner: repo.owner.login,
           repo: repo.name,
-          per_page: 1,
+          per_page: 10,
         });
-
-        repo.latest_release = release[0];
+        repo.releases = releases.slice(1, 3);
+        repo.latest_release = releases.filter(a => a.draft === false)[0];
         return repo;
       })
     );
@@ -59,15 +63,21 @@ class App extends React.Component {
         if (!repo.latest_release) {
           return repo;
         }
+        console.log(repo.latest_release)
 
-        const { data: commits } = await this.octokit.repos.compareCommits({
-          owner: repo.owner.login,
-          repo: repo.name,
-          base: repo.latest_release?.tag_name,
-          head: repo.default_branch,
-        });
+        try {
 
-        repo.commits = commits;
+          const { data: commits } = await this.octokit.repos.compareCommits({
+            owner: repo.owner.login,
+            repo: repo.name,
+            base: repo.latest_release?.target_commitish ?? repo.latest_release?.tag_name,
+            head: repo.default_branch,
+          });
+
+          repo.commits = commits;
+        } catch (error) {
+          console.warn(`Error comparing commits`, repo, error)
+        }
         return repo;
       })
     );
@@ -106,7 +116,7 @@ class App extends React.Component {
 
   renderFilters() {
     return (
-      <div className="flex">
+      <nav className="flex items-center space-x-4 lg:space-x-6 mx-6">
         <FilterButton
           defaultState={this.state.unreleased}
           onClick={() => this.invert("unreleased")}
@@ -125,15 +135,24 @@ class App extends React.Component {
         >
           Up to date
         </FilterButton>
-      </div>
+      </nav>
     );
   }
 
   async handleSubmit(event) {
-    event.preventDefault();
-
+    let token = ''
+    let username = ''
+    if (event) {
+      event.preventDefault();
+      token = event.target.elements.token.value
+      window.localStorage.setItem('gh_token', token)
+    } else if (window.localStorage.getItem('gh_token')) {
+      token = window.localStorage.getItem('gh_token');
+    } else if (window.location.hash) {
+      token = window.location.hash.substring(1);
+    }
     this.octokit = new Octokit({
-      auth: `token ${event.target.elements.token.value}`,
+      auth: `token ${token}`,
     });
 
     // Check that the credentials work
@@ -154,8 +173,8 @@ class App extends React.Component {
 
     this.setState(
       {
-        authToken: event.target.elements.token.value,
-        targetUser: event.target.elements.user.value,
+        authToken: token,
+        targetUser: username,
       },
       () => {
         this.loadRepos();
@@ -196,6 +215,10 @@ class App extends React.Component {
     );
   }
 
+  componentDidMount() {
+    this.handleSubmit();
+  }
+
   render() {
     if (!this.state.authToken) {
       return this.renderTokenInput();
@@ -203,11 +226,14 @@ class App extends React.Component {
 
     return (
       <div>
-        <p>
-          Total repos loaded: {this.state.repos.length}{" "}
-          {this.state.loading_progress}
-        </p>
-        {this.renderFilters()}
+        <div className="flex h-16 items-center px-4">
+          <span className="inline-flex items-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground h-9 px-4 py-2 w-[200px] justify-between">
+            Total repos loaded:
+            {this.state.loading_progress}
+            {this.state.repos.length}
+          </span>
+          {this.renderFilters()}
+        </div>
         <div className="flex flex-wrap my-4">
           {this.state.repos.map((r) => {
             if (!this.state.unreleased && r.latest_release === undefined) {
