@@ -64,7 +64,7 @@ class App extends React.Component {
             repo: repo.name,
             per_page: 50,
           })
-          const data = result.filter((tag)=> { 
+          const tags = result.filter((tag)=> { 
             return tag.name.match(/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/)
           }).map(
             (tag) => { 
@@ -84,13 +84,13 @@ class App extends React.Component {
           const commitDetail = await this.octokit.request('GET /repos/{owner}/{repo}/commits/{ref}', {
               owner: repo.owner.login,
               repo: repo.name,
-              ref: data[0].commit.sha,
+              ref: tags[0].commit.sha,
               })
         
           repo.latest_release = {
-            target_commitish:data[0].commit.sha, 
+            target_commitish:tags[0].commit.sha, 
             published_at:commitDetail.data.commit.author.date,
-            tag_name: data[0].name
+            tag_name: tags[0].name
           };
           repo.releases = [];
           
