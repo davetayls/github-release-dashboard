@@ -44,14 +44,67 @@ class App extends React.Component {
     // Get the latest release
     repos = await Promise.all(
       repos.map(async (repo) => {
-        const { data: releases } = await this.octokit.repos.listReleases({
+        // get security alerts
+        const alerts = await this.octokit.paginate('GET /repos/{owner}/{repo}/dependabot/alerts', {
           owner: repo.owner.login,
           repo: repo.name,
-          per_page: 10,
-        });
-        repo.releases = releases.slice(1, 3);
-        repo.latest_release = releases.filter(a => a.draft === false)[0];
-        return repo;
+          per_page: 50
+        }).catch((e) => {console.error(e);})
+       
+        repo.alerts = alerts? {
+          critical: alerts.filter((alert) => alert.state === 'open' && alert.security_vulnerability.severity === 'critical').length,
+          high: alerts.filter((alert) => alert.state === 'open' && alert.security_vulnerability.severity === 'high').length,
+          medium: alerts.filter((alert) => alert.state === 'open' && alert.security_vulnerability.severity === 'medium').length
+        } : undefined;
+        
+        if (config.repos.filter((repo)=>repo.isGitFlow).map((repo)=>repo.name).includes(repo.full_name)) {
+          // release by Git Flow - get tags instead of release
+          const result = await this.octokit.paginate('GET /repos/{owner}/{repo}/tags', {
+            owner: repo.owner.login,
+            repo: repo.name,
+            per_page: 50,
+          })
+          const tags = result.filter((tag)=> { 
+            return tag.name.match(/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/)
+          }).map(
+            (tag) => { 
+              tag.version = {};
+              tag.version.major = Number(tag.name.split('.')[0]);
+              tag.version.minor = Number(tag.name.split('.')[1]); 
+              tag.version.patch = Number(tag.name.split('.')[2]);
+              return tag;
+            }).sort((tag1, tag2) => {
+              if (tag1.version.major === tag2.version.major) {
+                if (tag1.version.minor === tag2.version.minor) {
+                  return tag2.version.patch - tag1.version.patch;
+                }
+                return tag2.version.minor - tag1.version.minor;
+              }
+              return tag2.version.major - tag1.version.major});
+          const commitDetail = await this.octokit.request('GET /repos/{owner}/{repo}/commits/{ref}', {
+              owner: repo.owner.login,
+              repo: repo.name,
+              ref: tags[0].commit.sha,
+              })
+        
+          repo.latest_release = {
+            target_commitish:tags[0].commit.sha, 
+            published_at:commitDetail.data.commit.author.date,
+            tag_name: tags[0].name
+          };
+          repo.releases = [];
+          
+          return repo;
+        } else {
+          const { data: releases } = await this.octokit.repos.listReleases({
+            owner: repo.owner.login,
+            repo: repo.name,
+            per_page: 10,
+          });
+          repo.releases = releases.slice(1, 3);
+          repo.latest_release = releases.filter(a => a.draft === false)[0];
+          return repo;
+        }
       })
     );
 

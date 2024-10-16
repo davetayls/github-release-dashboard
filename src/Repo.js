@@ -22,7 +22,7 @@ class Repo extends React.Component {
     if (repo.latest_release === null || repo.commits?.ahead_by > 10 || daysAgo > 14) {
       colour = "orange";
     }
-    if (repo.commits?.ahead_by >= 50 || daysAgo > 30) {
+    if (repo.commits?.ahead_by >= 50 || daysAgo > 30 || repo.alerts?.critical > 0 || repo.alerts?.high > 3) {
       colour = "red";
     }
 
@@ -58,6 +58,13 @@ class Repo extends React.Component {
               Latest: {this.state.latest_release.tag_name} - {formatDistance(Date.now(), this.state.latest_release.published_at ?? this.state.latest_release.created_at)}
             </a>
           )}
+          {this.state.alerts && (
+            <span
+              className="bg-gray-200 inline-block rounded-full px-3 py-1 text-sm font-semibold text-gray-700 mr-2 mb-2">
+              Security Alerts: 
+                        {this.state.alerts.critical}-{this.state.alerts.high}-{this.state.alerts.medium} 
+            </span>
+          )}
         </div>
         <div className="pt-4 pb-2">
           {this.state.releases.map((release) =>
@@ -67,6 +74,7 @@ class Repo extends React.Component {
             </a>
           )}
         </div>
+        
       </>
     );
   }

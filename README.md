@@ -18,7 +18,8 @@ Add a `src/config.json` file to specify where repos will be pulled from
 {
   "org": "optional_your_org",
   "repos": [
-    { "name": "name-inside-org" }
+    { "name": "name-inside-org" },
+    { "name": "name-inside-org-2", "isGitFlow": true}
   ]
 }
 ```
